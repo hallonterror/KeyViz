@@ -1,0 +1,24 @@
+﻿<Window x:Class="KeyViz.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:KeyViz"
+        mc:Ignorable="d"
+        Title="KeyViz" SizeToContent="WidthAndHeight">
+  <Grid x:Name="MainGrid">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*" />
+      <RowDefinition Height="35" />
+    </Grid.RowDefinitions>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+    <StackPanel x:Name="LayoutPanel" Grid.Row="0" Grid.ColumnSpan="2">
+    </StackPanel>
+    <TextBlock x:Name="BoardName" Grid.Row="1" Grid.Column="0" Text="KeyBoardName" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18"/>
+    <StackPanel x:Name="LayoutList" Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+    </StackPanel>
+  </Grid>
+</Window>
