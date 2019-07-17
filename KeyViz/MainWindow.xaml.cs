@@ -127,7 +127,11 @@ namespace KeyViz
       }
       set
       {
-        if (selectedLayer == value) return;
+        if (selectedLayer == value)
+        {
+          return;
+        }
+
         selectedLayer = value;
 
         // Update button look and feel
@@ -142,6 +146,8 @@ namespace KeyViz
     {
       get { return layers.Count; }
     }
+
+    private bool IsMinimized { get; set; }
 
     class IndexedButton : System.Windows.Controls.Primitives.ToggleButton
     {
@@ -245,7 +251,11 @@ namespace KeyViz
     {
       if (e.Button.Equals(System.Windows.Forms.MouseButtons.Left))
       {
-        RestoreFromTray();
+        if (IsMinimized)
+        {
+          RestoreFromTray();
+          IsMinimized = false;
+        }
       }
       else if (e.Button.Equals(System.Windows.Forms.MouseButtons.Right))
       {
@@ -263,19 +273,25 @@ namespace KeyViz
       // Display the default layer in GUI
       ShowLayer(0);
     }
-  
+
+    private bool notifyOnce = true;
     private void MinimizeToTray()
     {
       Hide();
-      WindowState = System.Windows.WindowState.Minimized;
+      WindowState = WindowState.Minimized;
       trayIcon.Visible = true;
-      trayIcon.ShowBalloonTip(1000);
+
+      if (notifyOnce)
+      {
+        trayIcon.ShowBalloonTip(1000);
+        notifyOnce = false;
+      }
     }
 
     private void RestoreFromTray()
     {
       Show();
-      WindowState = System.Windows.WindowState.Normal;
+      WindowState = WindowState.Normal;
       trayIcon.Visible = false;
     }
 
@@ -283,7 +299,13 @@ namespace KeyViz
     protected override void OnStateChanged(EventArgs e)
     {
       if (WindowState == WindowState.Minimized)
-        MinimizeToTray();
+      {
+        if (!IsMinimized)
+        {
+          MinimizeToTray();
+          IsMinimized = true;
+        }
+      }
       base.OnStateChanged(e);
     }
 
@@ -298,7 +320,7 @@ namespace KeyViz
       // Register hotkeys
       for (Int32 i = 0; i < AvailableLayers; ++i)
       {
-        int id = hkManager.Add(Constants.CTRL, System.Windows.Forms.Keys.D0 + i, this);
+        int id = hkManager.Add(Constants.CTRL, System.Windows.Forms.Keys.D1 + i, this);
         hkHash2Layer[id] = i;
       }
     }
@@ -311,6 +333,28 @@ namespace KeyViz
       base.OnClosed(e);
     }
 
+    private void HideWindowTimer(object sender, EventArgs e)
+    {
+      var timer = (System.Windows.Threading.DispatcherTimer)sender;
+      timer.Stop();
+      timer.Tick -= HideWindowTimer;
+      if (Keyboard.IsKeyDown(Key.LeftCtrl))
+      {
+        StartHideTimer();
+      }
+      else
+      {
+        MinimizeToTray();
+      }
+    }
+    private void StartHideTimer()
+    {
+      var timer = new System.Windows.Threading.DispatcherTimer();
+      timer.Interval = TimeSpan.FromSeconds(0.2);
+      timer.Tick += HideWindowTimer;
+      timer.Start();
+    }
+
     private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
       int id = hkManager.MatchHook(msg, wParam);
@@ -320,6 +364,11 @@ namespace KeyViz
         ShowLayer(layer);
         RestoreFromTray();
         handled = true;
+
+        if (IsMinimized)
+        {
+          StartHideTimer();
+        }
       }
       return IntPtr.Zero;
     }

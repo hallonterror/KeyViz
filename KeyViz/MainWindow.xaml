@@ -5,7 +5,11 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:KeyViz"
         mc:Ignorable="d"
-        Title="KeyViz" SizeToContent="WidthAndHeight">
+        Title="KeyViz" 
+        SizeToContent="WidthAndHeight"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True">
   <Grid x:Name="MainGrid">
     <Grid.RowDefinitions>
       <RowDefinition Height="*" />
