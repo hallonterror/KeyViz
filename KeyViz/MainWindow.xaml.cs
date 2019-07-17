@@ -21,6 +21,8 @@ namespace KeyViz
   /// </summary>
   public partial class MainWindow : Window
   {
+    private HotKeyManager hkManager = new HotKeyManager();
+    private Dictionary<int, Int32> hkHash2Layer = new Dictionary<int, Int32>();
     private System.Windows.Forms.NotifyIcon trayIcon = new System.Windows.Forms.NotifyIcon();
 
     public String getPath(String file)
@@ -136,6 +138,11 @@ namespace KeyViz
       }
     }
 
+    private Int32 AvailableLayers
+    {
+      get { return layers.Count; }
+    }
+
     class IndexedButton : System.Windows.Controls.Primitives.ToggleButton
     {
       public Int32 Index
@@ -238,9 +245,7 @@ namespace KeyViz
     {
       if (e.Button.Equals(System.Windows.Forms.MouseButtons.Left))
       {
-        WindowState = System.Windows.WindowState.Normal;
-        Show();
-        trayIcon.Visible = false;
+        RestoreFromTray();
       }
       else if (e.Button.Equals(System.Windows.Forms.MouseButtons.Right))
       {
@@ -258,19 +263,65 @@ namespace KeyViz
       // Display the default layer in GUI
       ShowLayer(0);
     }
+  
+    private void MinimizeToTray()
+    {
+      Hide();
+      WindowState = System.Windows.WindowState.Minimized;
+      trayIcon.Visible = true;
+      trayIcon.ShowBalloonTip(1000);
+    }
+
+    private void RestoreFromTray()
+    {
+      Show();
+      WindowState = System.Windows.WindowState.Normal;
+      trayIcon.Visible = false;
+    }
 
     // Minimize to system tray when application is minimized.
     protected override void OnStateChanged(EventArgs e)
     {
       if (WindowState == WindowState.Minimized)
-      {
-        Hide();
-        WindowState = System.Windows.WindowState.Minimized;
-        trayIcon.Visible = true;
-        trayIcon.ShowBalloonTip(1000);
-      }
-
+        MinimizeToTray();
       base.OnStateChanged(e);
+    }
+
+    private System.Windows.Interop.HwndSource _source;
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+      base.OnSourceInitialized(e);
+      var helper = new System.Windows.Interop.WindowInteropHelper(this);
+      _source = System.Windows.Interop.HwndSource.FromHwnd(helper.Handle);
+      _source.AddHook(HwndHook);
+
+      // Register hotkeys
+      for (Int32 i = 0; i < AvailableLayers; ++i)
+      {
+        int id = hkManager.Add(Constants.CTRL, System.Windows.Forms.Keys.D0 + i, this);
+        hkHash2Layer[id] = i;
+      }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+      _source.RemoveHook(HwndHook);
+      _source = null;
+      hkManager.Clear();
+      base.OnClosed(e);
+    }
+
+    private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+      int id = hkManager.MatchHook(msg, wParam);
+      if (id > 0)
+      {
+        Int32 layer = hkHash2Layer[id];
+        ShowLayer(layer);
+        RestoreFromTray();
+        handled = true;
+      }
+      return IntPtr.Zero;
     }
   }
 }
