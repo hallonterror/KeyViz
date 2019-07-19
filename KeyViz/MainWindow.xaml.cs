@@ -16,21 +16,40 @@ using Newtonsoft.Json;
 
 namespace KeyViz
 {
+  // Specialized button that can remember its index
+  class IndexedButton : System.Windows.Controls.Primitives.ToggleButton
+  {
+    public Int32 Index
+    {
+      get;
+      set;
+    }
+  };
+
   /// <summary>
   /// Interaction logic for MainWindow.xaml
   /// </summary>
   public partial class MainWindow : Window
   {
-    private HotKeyManager hkManager = new HotKeyManager();
-    private Dictionary<int, Int32> hkHash2Layer = new Dictionary<int, Int32>();
+    // ========================================================================
+    // State variables
+    // ========================================================================
     private System.Windows.Forms.NotifyIcon trayIcon = new System.Windows.Forms.NotifyIcon();
+    private HotKeyManager hotKeyManager = new HotKeyManager();
+    private Dictionary<int, Int32> hotKeyEventToKeyboardLayer = new Dictionary<int, Int32>();
+    private List<List<List<String>>> keyboardLayer = new List<List<List<String>>>();
 
-    public String getPath(String file)
+    // ========================================================================
+    // Utilities
+    // ========================================================================
+    // Navigates to the app resource directory
+    public String GetPath(String file)
     {
       return System.IO.Path.Combine(Environment.CurrentDirectory, @"resources\", file);
     }
 
-    public Int32[] getKeysPerRow(String keyboard)
+    // These are keyboard specific
+    public Int32[] GetKeysPerRow(String keyboard)
     {
       if (keyboard.Equals("tada68"))
       {
@@ -72,52 +91,10 @@ namespace KeyViz
       return new float[][] { };
     }
 
-    private void CreateTaskBarNotifyIcon()
-    {
-      //Icon: probably the most important property that represents the icon that will be shown in the system tray.Only.ico files can be used.
-      trayIcon.Icon = new System.Drawing.Icon(getPath("icon_16.ico"));
-
-      //BalloonTipIcon: specifies the icon that will be shown with the balloon tip.
-      trayIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info;
-      //BalloonTipText: the actual text that will be displayed on the balloon tip.
-      trayIcon.BalloonTipText = "The keymap visualization tool is running in the background.";
-      //BalloonTipTitle: the title of the balloon tip.
-      trayIcon.BalloonTipTitle = "Minimize to tray";
-
-      //Text: the text that will be shown when you hover your mouse on the icon in the system tray.
-      trayIcon.Text = "Press Ctrl + 1 to show the first layer of your current keymap.";
-      //Visible: indicates whether the icon is visible in the system tray.
-
-      // TODO: Fix a nixe looking menu
-      ////ContextMenuStrip: context menu that is associated with the NotifyIcon.
-      //System.Windows.Forms.ContextMenuStrip menu = new ContextMenuStrip();
-      //trayIcon.ContextMenuStrip = menu;
-
-      // Bring back GUI
-      trayIcon.MouseClick += TrayIcon_MouseClick;
-    }
-
-    private String CleanKeyName(String keyname)
-    {
-      if (keyname.Equals("KC_TRNS")) { return ""; }
-      String cleanedKeyName = keyname.Replace("KC_", "");
-      return cleanedKeyName;
-    }
-
-    private Button CreateGraphicalKey(Int32 row, Int32 column, String key, float KeySize, float[][] keySizes)
-    {
-      Button block = new Button();
-      block.Content = CleanKeyName(key);
-      block.Width = KeySize * keySizes[row][column];
-      block.Height = KeySize;
-      block.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
-      block.VerticalAlignment = System.Windows.VerticalAlignment.Center;
-      return block;
-    }
-
-    private String keyboardName = "";
-    private List<List<List<String>>> layers = new List<List<List<String>>>();
-
+    // ========================================================================
+    // Properties
+    // ========================================================================
+    private String KeyboardName { get; set; }
     private Int32 selectedLayer = 0;
     private Int32 SelectedLayer
     {
@@ -141,41 +118,56 @@ namespace KeyViz
         }
       }
     }
-
     private Int32 AvailableLayers
     {
-      get { return layers.Count; }
+      get { return keyboardLayer.Count; }
     }
-
     private bool IsMinimized { get; set; }
 
-    class IndexedButton : System.Windows.Controls.Primitives.ToggleButton
+    // ========================================================================
+    // Building the main view
+    // ========================================================================
+    // Function called on the raw keycode
+    // Modify this to get a prettier label on the keys
+    private String CleanKeyName(String keyname)
     {
-      public Int32 Index
-      {
-        get;
-        set;
-      }
-    };
+      if (keyname.Equals("KC_TRNS")) { return ""; }
+      String cleanedKeyName = keyname.Replace("KC_", "");
+      return cleanedKeyName;
+    }
+    // Function that builds the actual graphical element displayed
+    // in the application. Modify this to get a nicer button look.
+    private Button CreateGraphicalKey(Int32 row, Int32 column, String key, float KeySize, float[][] keySizes)
+    {
+      Button block = new Button();
+      block.Content = CleanKeyName(key);
+      block.Width = KeySize * keySizes[row][column];
+      block.Height = KeySize;
+      block.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
+      block.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+      return block;
+    }
 
+    // This function parses the keyboard layout specification
+    // and creates the keyboard visualization using the above
+    // declared helper functions.
     private void PopulateKeymap()
     {
       // Parse the source JSON
       try
       {
-        String json = System.IO.File.ReadAllText(getPath("keymap_default_tada68.json"));
+        String json = System.IO.File.ReadAllText(GetPath("keymap_default_tada68.json"));
         dynamic data = JsonConvert.DeserializeObject(json);
-        keyboardName = data.keyboard;
-        Int32[] keysPerRow = getKeysPerRow(keyboardName);
+        KeyboardName = data.keyboard;
+        Int32[] keysPerRow = GetKeysPerRow(KeyboardName);
 
         // Split into easy to understand layers
-        dynamic dlayers = data.layers;
-        for (Int32 l = 0; l < dlayers.Count; ++l)
+        var dlayers = data.layers;
+        foreach (var dlayer in dlayers)
         {
           // Split the layers into rows
           List<List<String>> keys = new List<List<String>>();
 
-          dynamic dlayer = dlayers[l];
           List<String> row = new List<string>();
           for (Int32 key = 0; key < dlayer.Count; ++key)
           {
@@ -191,46 +183,45 @@ namespace KeyViz
           {
             // TODO: Log warning here
           }
-          layers.Add(keys);
+          keyboardLayer.Add(keys);
           keys = new List<List<String>>();
         }
       }
       catch
       {
-        // TODO: Add failure handling here
+        // Fail silently for now
+        return;
       }
 
       // Add buttons to toggle between layers
-      for (Int32 l = 0; l < layers.Count; ++l)
+      for (Int32 l = 0; l < keyboardLayer.Count; ++l)
       {
         IndexedButton b = new IndexedButton();
         b.Content = l.ToString();
         b.Index = l;
         b.Click += SelectLayerButton_Click;
         b.Width = 35;
-        //b.Command = "b" + l.ToString();
         LayoutList.Children.Add(b);
-
-        //InputGesture gesture = new InputGesture();
-        //InputBinding keyBinding = new InputBinding(new ICommand(), new InputGesture());
-        //b.InputBindings.Add(keyBinding);
       }
     }
 
-    private void SelectLayerButton_Click(object sender, RoutedEventArgs e)
-    {
-      IndexedButton b = (IndexedButton)sender;
-      ShowLayer(b.Index);
-    }
-
+    // This function displayes a certain layer for the loaded keyboard keymap.
     private void ShowLayer(Int32 layerIndex)
     {
+      if (layerIndex >= keyboardLayer.Count)
+      {
+        // A non-existent layer was requested.
+        // This should normally not happen as no buttons
+        // or events should be created with a higher index.
+        return;
+      }
+
       // Generate a graphical visualization for the main window
-      float[][] keySizes = GetKeySizes(keyboardName, layers[0]);
+      float[][] keySizes = GetKeySizes(KeyboardName, keyboardLayer[0]);
       float baseSize = 50.0f;
       LayoutPanel.Children.Clear();
 
-      List<List<String>> layer = layers[layerIndex];
+      List<List<String>> layer = keyboardLayer[layerIndex];
       for (Int32 r = 0; r < layer.Count; ++r)
       {
         List<String> row = layer[r];
@@ -243,10 +234,21 @@ namespace KeyViz
         LayoutPanel.Children.Add(gridRow);
       }
 
-      BoardName.Text = keyboardName;
+      BoardName.Text = KeyboardName;
       SelectedLayer = layerIndex;
     }
 
+    // ========================================================================
+    // Events
+    // ========================================================================
+    // Handle a button press in the main window to select layer
+    private void SelectLayerButton_Click(object sender, RoutedEventArgs e)
+    {
+      IndexedButton b = (IndexedButton)sender;
+      ShowLayer(b.Index);
+    }
+    // Handle click on tray icon to restore main window or
+    // show the menu with available options.
     private void TrayIcon_MouseClick(object sender, System.Windows.Forms.MouseEventArgs e)
     {
       if (e.Button.Equals(System.Windows.Forms.MouseButtons.Left))
@@ -264,6 +266,30 @@ namespace KeyViz
       }
     }
 
+    // ========================================================================
+    // Main setup
+    // ========================================================================
+    // Helper that encapsulates the setup of the tray icon.
+    private void CreateTaskBarNotifyIcon()
+    {
+      //Icon: probably the most important property that represents the icon that will be shown in the system tray.Only.ico files can be used.
+      trayIcon.Icon = new System.Drawing.Icon(GetPath("icon_16.ico"));
+
+      trayIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info;
+      trayIcon.BalloonTipText = "The keymap visualization tool is running in the background.";
+      trayIcon.BalloonTipTitle = "Minimize to tray";
+      trayIcon.Text = "Press Ctrl + 1 to show the first layer of your current keymap.";
+
+      // TODO: Fix a nice looking menu
+      ////ContextMenuStrip: context menu that is associated with the NotifyIcon.
+      //System.Windows.Forms.ContextMenuStrip menu = new ContextMenuStrip();
+      //trayIcon.ContextMenuStrip = menu;
+
+      // Bring back GUI
+      trayIcon.MouseClick += TrayIcon_MouseClick;
+    }
+
+    // Constructor of the main window.
     public MainWindow()
     {
       InitializeComponent();
@@ -274,6 +300,9 @@ namespace KeyViz
       ShowLayer(0);
     }
 
+    // ========================================================================
+    // Handle minimize/restore of main window
+    // ========================================================================
     private bool notifyOnce = true;
     private void MinimizeToTray()
     {
@@ -287,52 +316,12 @@ namespace KeyViz
         notifyOnce = false;
       }
     }
-
     private void RestoreFromTray()
     {
       Show();
       WindowState = WindowState.Normal;
       trayIcon.Visible = false;
     }
-
-    // Minimize to system tray when application is minimized.
-    protected override void OnStateChanged(EventArgs e)
-    {
-      if (WindowState == WindowState.Minimized)
-      {
-        if (!IsMinimized)
-        {
-          MinimizeToTray();
-          IsMinimized = true;
-        }
-      }
-      base.OnStateChanged(e);
-    }
-
-    private System.Windows.Interop.HwndSource _source;
-    protected override void OnSourceInitialized(EventArgs e)
-    {
-      base.OnSourceInitialized(e);
-      var helper = new System.Windows.Interop.WindowInteropHelper(this);
-      _source = System.Windows.Interop.HwndSource.FromHwnd(helper.Handle);
-      _source.AddHook(HwndHook);
-
-      // Register hotkeys
-      for (Int32 i = 0; i < AvailableLayers; ++i)
-      {
-        int id = hkManager.Add(Constants.CTRL, System.Windows.Forms.Keys.D1 + i, this);
-        hkHash2Layer[id] = i;
-      }
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-      _source.RemoveHook(HwndHook);
-      _source = null;
-      hkManager.Clear();
-      base.OnClosed(e);
-    }
-
     private void StartHideTimer()
     {
       var timer = new System.Windows.Threading.DispatcherTimer();
@@ -348,12 +337,59 @@ namespace KeyViz
       timer.Start();
     }
 
+    // Minimize to system tray when application is minimized.
+    protected override void OnStateChanged(EventArgs e)
+    {
+      if (WindowState == WindowState.Minimized)
+      {
+        if (!IsMinimized)
+        {
+          MinimizeToTray();
+          IsMinimized = true;
+        }
+      }
+      base.OnStateChanged(e);
+    }
+    // ========================================================================
+    // The following code handles global hotkey support
+    // ========================================================================
+    private System.Windows.Interop.HwndSource _source;
+
+    // Hotkey events must be assigned here, otherwise they don't work
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+      base.OnSourceInitialized(e);
+
+      // Get hardware handle to use for hotkeys
+      var helper = new System.Windows.Interop.WindowInteropHelper(this);
+      _source = System.Windows.Interop.HwndSource.FromHwnd(helper.Handle);
+      _source.AddHook(HwndHook);
+
+      // Register our selected hotkeys
+      for (Int32 i = 0; i < AvailableLayers; ++i)
+      {
+        int id = hotKeyManager.Add(Constants.CTRL, System.Windows.Forms.Keys.D1 + i, this);
+        hotKeyEventToKeyboardLayer[id] = i;
+      }
+    }
+
+    // We should clean up our hotkeys to avoid having orphaned events in Windows
+    protected override void OnClosed(EventArgs e)
+    {
+      _source.RemoveHook(HwndHook);
+      _source = null;
+      // Ensure that all events are deregistered properly
+      hotKeyManager.Clear();
+      base.OnClosed(e);
+    }
+
+    // This event is called once a global hotkey is pressed
     private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-      int id = hkManager.MatchHook(msg, wParam);
+      int id = hotKeyManager.MatchHook(msg, wParam);
       if (id > 0)
       {
-        Int32 layer = hkHash2Layer[id];
+        Int32 layer = hotKeyEventToKeyboardLayer[id];
         ShowLayer(layer);
         RestoreFromTray();
         handled = true;
@@ -365,5 +401,6 @@ namespace KeyViz
       }
       return IntPtr.Zero;
     }
+    // ========================================================================
   }
 }
