@@ -94,9 +94,9 @@ namespace KeyViz
     // ========================================================================
     // Properties
     // ========================================================================
-    private String KeyboardName { get; set; }
-    private Int32 selectedLayer = 0;
-    private Int32 SelectedLayer
+    public String KeyboardName { get; set; }
+    private Int32 selectedLayer = -1;
+    public Int32 SelectedLayer
     {
       get
       {
@@ -116,9 +116,12 @@ namespace KeyViz
         {
           b.IsChecked = selectedLayer == b.Index;
         }
+
+        // Display the new active layer
+        ShowLayer(selectedLayer);
       }
     }
-    private Int32 AvailableLayers
+    public Int32 AvailableLayers
     {
       get { return keyboardLayer.Count; }
     }
@@ -235,7 +238,6 @@ namespace KeyViz
       }
 
       BoardName.Text = KeyboardName;
-      SelectedLayer = layerIndex;
     }
 
     // ========================================================================
@@ -245,7 +247,7 @@ namespace KeyViz
     private void SelectLayerButton_Click(object sender, RoutedEventArgs e)
     {
       IndexedButton b = (IndexedButton)sender;
-      ShowLayer(b.Index);
+      SelectedLayer = b.Index;
     }
     // Handle click on tray icon to restore main window or
     // show the menu with available options.
@@ -297,7 +299,7 @@ namespace KeyViz
       PopulateKeymap();
 
       // Display the default layer in GUI
-      ShowLayer(0);
+      SelectedLayer = 0;
     }
 
     // ========================================================================
@@ -390,7 +392,7 @@ namespace KeyViz
       if (id > 0)
       {
         Int32 layer = hotKeyEventToKeyboardLayer[id];
-        ShowLayer(layer);
+        SelectedLayer = layer;
         RestoreFromTray();
         handled = true;
 
