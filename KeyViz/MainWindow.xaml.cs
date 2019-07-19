@@ -59,9 +59,9 @@ namespace KeyViz
       }
       return new Int32[] { };
     }
-    public float[][] GetKeySizes(String keyboard, List<List<String>> toplayer)
+    public Dictionary<String, float> GetSpecialKeySizes(string locality)
     {
-      if (keyboard.Equals("tada68"))
+      if (locality.ToLower().Equals("ansi"))
       {
         Dictionary<String, float> dict = new Dictionary<String, float>();
         dict.Add("KC_SPC", 6.25f);
@@ -76,7 +76,15 @@ namespace KeyViz
         dict.Add("KC_LCTL", 1.25f);
         dict.Add("KC_LGUI", 1.25f);
         dict.Add("KC_LALT", 1.25f);
-
+        return dict;
+      }
+      return new Dictionary<string, float>();
+    }
+    public float[][] GetKeySizes(String keyboard, List<List<String>> toplayer)
+    {
+      if (keyboard.Equals("tada68"))
+      {
+        Dictionary<String, float> dict = GetSpecialKeySizes("ANSI");
         float[][] total = new float[toplayer.Count][];
         for (Int32 r = 0; r < toplayer.Count; ++r)
         {
@@ -97,6 +105,7 @@ namespace KeyViz
     // Properties
     // ========================================================================
     public String KeyboardName { get; set; }
+    public float KeySize { get; set; }
     private Int32 selectedLayer = -1;
     public Int32 SelectedLayer
     {
@@ -315,7 +324,6 @@ namespace KeyViz
 
       // Generate a graphical visualization for the main window
       float[][] keySizes = GetKeySizes(KeyboardName, keyboardLayer[0]);
-      float baseSize = 50.0f;
       LayoutPanel.Children.Clear();
 
       List<List<String>> layer = keyboardLayer[layerIndex];
@@ -325,7 +333,7 @@ namespace KeyViz
         StackPanel gridRow = new StackPanel();
         for (Int32 k = 0; k < row.Count; ++k)
         {
-          gridRow.Children.Add(CreateGraphicalKey(r, k, row[k], baseSize, keySizes));
+          gridRow.Children.Add(CreateGraphicalKey(r, k, row[k], KeySize, keySizes));
         }
         gridRow.Orientation = System.Windows.Controls.Orientation.Horizontal;
         LayoutPanel.Children.Add(gridRow);
@@ -394,6 +402,7 @@ namespace KeyViz
       PopulateKeymap();
 
       // Display the default layer in GUI
+      KeySize = 50.0f; // Select the rendering size
       SelectedLayer = 0;
     }
 
