@@ -13,6 +13,8 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using Newtonsoft.Json;
+using System.Text.RegularExpressions;
+using System.Net;
 
 namespace KeyViz
 {
@@ -127,6 +129,92 @@ namespace KeyViz
     }
     private bool IsMinimized { get; set; }
 
+
+    // ========================================================================
+    // Getting key aliases and symbols
+    // ========================================================================
+    private Dictionary<string, string> keyToSymbol = new Dictionary<string, string>();
+    // This function parses an official markdown file from QMK to display
+    // nicer labels than the raw key codes found in the JSON/C-files.
+    private void GetKeySymbols()
+    {
+      Regex rx = new Regex(@"\|`([^\|]*)`\s*\|([^\|]*)\|([^\|]*)\||\|`([^\|]*)`\s*\|([^\|]*)\|",
+          RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+      Regex andsplit = new Regex(@"`(.*)` and `(.*)`");
+
+      System.IO.StreamReader file = new System.IO.StreamReader(GetPath("qmk_keys.md"));
+      string line;
+      while ((line = file.ReadLine()) != null)
+      {
+        MatchCollection matches = rx.Matches(line);
+        foreach (Match match in matches)
+        {
+          GroupCollection groups = match.Groups;
+
+          // Alias or no alias
+          string symbol;
+          List<string> keys = new List<string>();
+          if (groups[4].Value != "")
+          {
+            keys.Add(groups[4].Value);
+            symbol = groups[5].Value.Trim();
+          }
+          else
+          {
+            keys.Add(groups[1].Value);
+            string aliasTemp = groups[2].Value.Trim();
+            if (aliasTemp != "")
+            {
+              foreach (var alias in aliasTemp.Split(','))
+                keys.Add(alias.Replace("`", "").Trim());
+            }
+            symbol = groups[3].Value.Trim();
+          }
+
+          // Skip no-op keycodes and their aliases
+          if (keys[0] == "KC_NO" || keys[0] == "KC_TRANSPARENT")
+          {
+            continue;
+          }
+
+          // Figure out if we are working on a character code (eg. KC_A, KC_B, ...).
+          // These keycode looks best if they are simply converted by removing KC_.
+          if (keys[0].Substring(0, 3) == "KC_" && keys[0].Length == 4)
+          {
+            continue;
+          }
+          
+          // Remove nasty HTML stuff
+          symbol = WebUtility.HtmlDecode(symbol);
+          symbol = symbol.Replace("<code>", "`").Replace("</code>", "`");
+
+          // Skip string that are way too long to be displayed
+          if (symbol.Length > 45)
+          {
+            continue;
+          }
+
+          // Shorten expression containing and
+          MatchCollection splits = andsplit.Matches(symbol);
+          if (splits.Count > 0)
+          {
+            symbol = splits[0].Groups[1].Value + " " + splits[0].Groups[2].Value;
+          }
+
+          // Remove all vowels to shorten text
+          //symbol = symbol[0] + new string(symbol.Substring(1).Where(c => !"AEIOUYaeiouy".Contains(c)).ToArray());
+
+          // Finally add the symbol as text for all keycodes
+          foreach (var key in keys)
+          {
+            keyToSymbol[key] = symbol;
+            Console.WriteLine("'{0}' key with symbol '{1}'", key, symbol);
+          }
+        }
+      }
+    }
+
     // ========================================================================
     // Building the main view
     // ========================================================================
@@ -134,6 +222,7 @@ namespace KeyViz
     // Modify this to get a prettier label on the keys
     private String CleanKeyName(String keyname)
     {
+      if (keyToSymbol.ContainsKey(keyname)) { return keyToSymbol[keyname]; }
       if (keyname.Equals("KC_TRNS")) { return ""; }
       String cleanedKeyName = keyname.Replace("KC_", "");
       return cleanedKeyName;
@@ -143,11 +232,16 @@ namespace KeyViz
     private Button CreateGraphicalKey(Int32 row, Int32 column, String key, float KeySize, float[][] keySizes)
     {
       Button block = new Button();
-      block.Content = CleanKeyName(key);
+      TextBlock content = new TextBlock();
+      content.TextWrapping = TextWrapping.Wrap;
+      content.Text = CleanKeyName(key);
+      block.Content = content;
       block.Width = KeySize * keySizes[row][column];
       block.Height = KeySize;
       block.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
       block.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+      if (content.Text != "")
+        block.ToolTip = content.Text;
       return block;
     }
 
@@ -296,6 +390,7 @@ namespace KeyViz
     {
       InitializeComponent();
       CreateTaskBarNotifyIcon();
+      GetKeySymbols();
       PopulateKeymap();
 
       // Display the default layer in GUI
