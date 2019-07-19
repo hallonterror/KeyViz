@@ -91,14 +91,11 @@ namespace KeyViz
     {
       if (msg == Constants.WM_HOTKEY_MSG_ID)
       {
-        foreach (var hk in hotKeys)
-        {
-          Int32 id = wParam.ToInt32();
-          if (id == hk.Key)
-          {
-            return id;
-          }
-        }
+        Int32 id = wParam.ToInt32();
+        if (hotKeys.ContainsKey(id))
+          return id;
+        else
+          return -1;
       }
       return -1;
     }
