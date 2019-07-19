@@ -333,25 +333,18 @@ namespace KeyViz
       base.OnClosed(e);
     }
 
-    private void HideWindowTimer(object sender, EventArgs e)
-    {
-      var timer = (System.Windows.Threading.DispatcherTimer)sender;
-      timer.Stop();
-      timer.Tick -= HideWindowTimer;
-      if (Keyboard.IsKeyDown(Key.LeftCtrl))
-      {
-        StartHideTimer();
-      }
-      else
-      {
-        MinimizeToTray();
-      }
-    }
     private void StartHideTimer()
     {
       var timer = new System.Windows.Threading.DispatcherTimer();
       timer.Interval = TimeSpan.FromSeconds(0.2);
-      timer.Tick += HideWindowTimer;
+      timer.Tick += ((sender, e) =>
+      {
+        if (!Keyboard.IsKeyDown(Key.LeftCtrl))
+        {
+          MinimizeToTray();
+          timer.Stop();
+        }
+      });
       timer.Start();
     }
 
